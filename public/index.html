@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="EYE OF DHARMA (EOD) - Open-Source Intelligence & Digital Investigation Operations Platform" />
+  <meta name="theme-color" content="#0A0D14" />
+  <title>EYE OF DHARMA // OPS-CENTER</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <!-- Pinned map + graph libraries (MIT / BSD); app degrades to a labelled fallback if the CDN is unreachable. -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <script>
+    // Echo the double-submit CSRF cookie on every same-origin state-changing request.
+    (() => {
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const method = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && url.origin === location.origin) {
+          const token = document.cookie.match(/(?:^|;\s*)eod_csrf_token=([^;]+)/)?.[1];
+          if (token) {
+            const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+            headers.set('X-CSRF-Token', decodeURIComponent(token));
+            init = { ...init, headers };
+          }
+        }
+        return nativeFetch(input, init);
+      };
+    })();
+  </script>
+</head>
+<body>
+  <!-- Accessibility Skip Navigation -->
+  <a href="#main-content" class="skip-link">Skip to operational canvas</a>
+
+  <!-- Mobile Backdrop Overlay -->
+  <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
+
+  <div class="app-layout">
+    <!-- Top Telemetry Header -->
+    <header class="ops-header" role="banner">
+      <div class="brand">
+        <button id="mobile-menu-toggle" class="nav-rail-toggle" aria-label="Toggle Navigation Rail" style="display:none;">
+          <span style="font-size:16px;">☰</span>
+        </button>
+        <img src="/favicon.svg" alt="" width="22" height="22" style="margin-right:8px;" />
+        <span class="brand-title">EYE OF DHARMA</span>
+        <span class="brand-tag font-mono">[OPS-CENTER]</span>
+      </div>
+
+      <div class="telemetry-pills font-mono">
+        <div class="pill" title="Live (non-synthetic) records ingested from public feeds">
+          <span>LIVE RECORDS:</span>
+          <span id="hdr-live-records" class="pill-val gold">--</span>
+        </div>
+        <div class="pill" title="Most recent successful connector refresh">
+          <span>LAST INGEST:</span>
+          <span id="hdr-last-ingest" class="pill-val">--</span>
+        </div>
+        <div class="pill">
+          <span>ACTIVE MODULE:</span>
+          <span id="active-module-title" class="pill-val cyan">COMMAND CENTRE</span>
+        </div>
+        <div class="pill">
+          <span>ZULU CLOCK:</span>
+          <span id="zulu-clock" class="pill-val">2026-10-28 18:00:00Z</span>
+        </div>
+        <div class="pill">
+          <button id="header-cmd-palette-btn" class="btn btn-secondary" style="padding:2px 8px; font-size:10px;" title="Open Command Palette (Ctrl+K)">
+            🔍 <kbd style="font-size:9px;">Ctrl+K</kbd>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Body Container -->
+    <div class="ops-body">
+      <!-- 15 Integrated Navigation Rail Modules -->
+      <nav id="nav-rail" class="nav-rail" role="navigation" aria-label="Operational Modules">
+        <!-- Rendered dynamically by NavigationRail component -->
+      </nav>
+
+      <!-- Main Operational Canvas -->
+      <main id="main-content" class="ops-main" role="main" tabindex="-1">
+        <!-- Rendered view injected dynamically by Router -->
+      </main>
+    </div>
+
+    <!-- Live Event Ticker -->
+    <section id="global-event-ticker" class="ticker-banner font-mono" aria-label="Live Intelligence Ticker">
+      <!-- Mounted dynamically by EventTicker component -->
+    </section>
+
+    <!-- Bottom Telemetry Status Bar -->
+    <footer class="ops-footer font-mono" role="contentinfo">
+      <div class="footer-left">
+        <span><span id="ftr-dot" class="status-dot"></span> API: <strong id="ftr-api">CHECKING</strong></span>
+        <span title="Browser round-trip to /api/v1/health">RTT: <strong id="ftr-rtt">--</strong></span>
+        <span>DB: <strong id="ftr-db">--</strong></span>
+      </div>
+      <div class="footer-right">
+        <span>CONNECTORS: <strong id="ftr-connectors">--</strong></span>
+        <span>UPTIME: <strong id="ftr-uptime">--</strong></span>
+        <span>BUILD: <strong id="ftr-version">--</strong></span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Application Bootstrap -->
+  <script type="module">
+    import { Router } from '/js/router.js';
+    import { NavigationRail } from '/js/components/navigation_rail.js';
+    import { EventTicker } from '/js/components/event_ticker.js';
+    import { CommandPaletteController, mountCommandPalette } from '/js/components/command_palette.js';
+
+    // 1. Initialize Navigation Rail
+    const rail = new NavigationRail('nav-rail');
+    rail.init();
+
+    // 2. Initialize Router
+    const router = new Router('main-content');
+    window.eodRouter = router;
+    router.init();
+
+    // 3. Initialize Live Event Ticker
+    const ticker = new EventTicker('global-event-ticker', { pollIntervalMs: 5000 });
+    ticker.init();
+
+    // 4. Mount Global Command Palette (Ctrl+K)
+    const cmdPaletteCtrl = new CommandPaletteController({
+      onSelect: (item) => {
+        if (item.route) {
+          router.navigate(item.route);
+        } else if (item.action === 'run_footprint') {
+          router.navigate('/investigations');
+        } else if (item.action === 'create_case') {
+          router.navigate('/cases');
+        }
+      }
+    });
+    mountCommandPalette(document.body, cmdPaletteCtrl);
+
+    document.getElementById('header-cmd-palette-btn')?.addEventListener('click', () => {
+      cmdPaletteCtrl.open();
+      const overlay = document.querySelector('.command-palette-overlay');
+      if (overlay) overlay.style.display = 'flex';
+    });
+
+    // 5. Zulu Clock updater
+    function updateClock() {
+      const el = document.getElementById('zulu-clock');
+      if (el) {
+        const now = new Date();
+        el.textContent = now.toISOString().replace('T', ' ').substring(0, 19) + 'Z';
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 6. Real telemetry: footer + header driven by live API responses only.
+    const $ = (id) => document.getElementById(id);
+    const ago = (iso) => {
+      if (!iso) return 'NEVER';
+      const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+      return s < 60 ? `${s}s AGO` : s < 3600 ? `${Math.round(s / 60)}m AGO` : `${Math.round(s / 3600)}h AGO`;
+    };
+    async function pollTelemetry() {
+      try {
+        const t0 = performance.now();
+        const h = await (await fetch('/api/v1/health')).json();
+        $('ftr-rtt').textContent = `${Math.round(performance.now() - t0)}ms`;
+        $('ftr-api').textContent = h.status;
+        $('ftr-dot').className = `status-dot ${h.status === 'UP' ? 'pulsing' : ''}`;
+        $('ftr-db').textContent = `${h.db.engine} ${h.db.status}`;
+        $('ftr-uptime').textContent = `${Math.floor(h.uptime / 3600)}h ${Math.floor((h.uptime % 3600) / 60)}m`;
+        $('ftr-version').textContent = `v${h.version}`;
+      } catch {
+        $('ftr-api').textContent = 'UNREACHABLE';
+        $('ftr-dot').className = 'status-dot';
+      }
+      try {
+        const c = Object.values((await (await fetch('/api/v1/feeds/health')).json()).connectors || {});
+        const ok = c.filter((x) => x.status === 'healthy').length;
+        $('ftr-connectors').textContent = `${ok}/${c.length} HEALTHY`;
+        const last = c.map((x) => x.lastSuccessAt).filter(Boolean).sort().pop();
+        $('hdr-last-ingest').textContent = ago(last);
+        const f = await (await fetch('/api/v1/feeds?limit=1')).json();
+        $('hdr-live-records').textContent = String(f.total ?? '--');
+      } catch {
+        $('ftr-connectors').textContent = 'UNKNOWN';
+      }
+    }
+    pollTelemetry();
+    setInterval(pollTelemetry, 30000);
+  </script>
+</body>
+</html>
