@@ -19,6 +19,7 @@
 |---|---|
 | Live public feeds: **USGS earthquakes**, **NASA EONET**, **CISA KEV/advisories**, RSS/Atom | Working, polled in the background with rate limiting, retry/backoff and circuit breaker |
 | Passive footprint lookups: **DNS (+DoH fallback)**, **RDAP**, **crt.sh** certificate transparency | Working via `POST /api/v1/investigate/footprint`; negative results are distinguished from errors |
+| **Public-source entity lookup** (Investigations tab): organisations via Wikidata, GLEIF, SEC EDGAR*, UK Companies House*; public figures via Wikidata and OpenSanctions* sanctions/PEP lists; usernames via GitHub, GitLab, Hacker News public APIs | Working; *needs a free key or contact email in env (see `.env.example`), otherwise shown as `KEY REQUIRED` |
 | Global map (MapLibre + OpenFreeMap tiles) with clustered, source-linked event markers | Working |
 | Cases, append-only notes, evidence ledger (SHA-256, DB-trigger immutability), entity/relationship graph | Working |
 | Allowlisted terminal + `Ctrl+K` command palette | Working (no OS commands) |
@@ -29,10 +30,15 @@
 
 Synthetic demo cases are seeded on first boot and flagged `is_synthetic`; they are excluded from live feeds. The radar on the Command Centre only visualises ingested records; it is not a sensor.
 
+## Scope of person / social-media search
+This is deliberately **not** a people-search or dossier tool. It does not scrape social networks, query data brokers, break login walls, or aggregate private individuals' data. Person lookups cover public figures and sanctions/PEP lists; username checks use official public APIs only. Every lookup requires a lawful-purpose confirmation, is audited, and returns leads, not identity proof. Adding a source means a documented public API that permits the use.
+
 ## Screenshots
 | Command Centre | Live Intelligence |
 |---|---|
 | ![](docs/screenshots/command-center.png) | ![](docs/screenshots/live-intel.png) |
+| **Entity lookup** | |
+| ![](docs/screenshots/entity-lookup.png) | |
 
 ## Quick start
 Requires Node.js 24+.
@@ -68,7 +74,7 @@ USGS Earthquake Hazards Program, NASA EONET, CISA, crt.sh, RDAP registries, publ
 See [SECURITY.md](SECURITY.md). Key caveat: **there is no login yet**; do not expose this to the internet. The map and graph libraries load from a CDN (unpkg) and basemap tiles from OpenFreeMap, so the browser needs internet access for those.
 
 ## Roadmap
-Auth + roles, report export, LLM provider abstraction (Ollama first) on top of the agent run model, more connectors (NVD, URLhaus, ThreatFox, GDELT), watchlist alerting, Cloudflare D1 deployment path.
+Auth + roles, report export, LLM provider abstraction (Ollama first) on top of the agent run model, more connectors (NVD, URLhaus, ThreatFox, GDELT, court/registry APIs, more national company registries), watchlist alerting, Cloudflare D1 deployment path.
 
 ## Contributing
 Issues and PRs welcome. Run `npx tsc --noEmit && npm test` before opening a PR.

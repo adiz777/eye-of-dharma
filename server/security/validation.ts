@@ -222,3 +222,12 @@ export function validateBody<T>(schema: z.ZodSchema<T>) {
     next();
   };
 }
+
+export const EntityQuerySchema = z.object({
+  query_type: z.enum(['PERSON', 'ORGANIZATION', 'USERNAME']),
+  target: z.string().trim().min(2).max(120),
+  confirm_passive: z.literal(true),
+  // Explicit statement that the lookup is lawful, proportionate and (for PERSON) about a public figure or an authorised subject.
+  confirm_lawful_purpose: z.literal(true),
+  case_id: z.string().trim().min(1).optional().nullable()
+}).strict();

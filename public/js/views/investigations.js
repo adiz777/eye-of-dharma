@@ -2,6 +2,7 @@
 // EYE OF DHARMA (EOD) — Multi-Agent Intelligence Investigation Engine View
 
 import { mountFootprintUI } from '../components/footprint_ui.js';
+import { mountEntityLookup } from '../components/entity_lookup_ui.js';
 
 export function render(container) {
   container.innerHTML = `
@@ -11,7 +12,7 @@ export function render(container) {
         <div class="view-subtitle font-mono">MULTI-AGENT INTELLIGENCE ORCHESTRATION & INVESTIGATION DAG</div>
       </div>
       <div class="view-actions">
-        <span class="badge badge-verified font-mono">STATE MACHINE READY</span>
+        <span class="badge badge-neutral font-mono">AGENT RUNS: RECORDED ONLY</span>
       </div>
     </div>
 
@@ -47,7 +48,7 @@ export function render(container) {
         <div class="card font-mono" style="border-left:3px solid #10B981;">
           <div style="font-weight:700; color:#10B981;">NETRA</div>
           <div style="font-size:10px; color:var(--text-muted);">RESEARCHER</div>
-          <div style="font-size:11px; margin-top:6px;">OSINT ingestion, public registries & Web scraping.</div>
+          <div style="font-size:11px; margin-top:6px;">Public registries and feed ingestion.</div>
         </div>
         <div class="card font-mono" style="border-left:3px solid #38BDF8;">
           <div style="font-weight:700; color:#38BDF8;">CIPHER</div>
@@ -77,6 +78,8 @@ export function render(container) {
       </div>
     </div>
 
+    <div id="entity-mount-point" style="margin-top:20px;"></div>
+
     <!-- Embedded Digital Footprint Recon Section -->
     <div style="margin-top:20px;">
       <h3 class="font-mono" style="font-size:12px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px;">
@@ -85,6 +88,8 @@ export function render(container) {
       <div id="footprint-mount-point"></div>
     </div>
   `;
+
+  mountEntityLookup(container.querySelector('#entity-mount-point'));
 
   // Mount Footprint Recon UI
   const fpMount = container.querySelector('#footprint-mount-point');

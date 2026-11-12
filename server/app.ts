@@ -25,6 +25,7 @@ import { createWatchlistsRouter } from './routes/watchlists.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createTerminalRouter } from './routes/terminal.js';
 import { createFootprintRouter } from './routes/footprint.js';
+import { createEntityRouter } from './routes/entity.js';
 import { createAgentsRouter } from './routes/agents.js';
 import type { ConnectorManager } from './connectors/manager.js';
 
@@ -66,6 +67,7 @@ export function createApp(db: Database.Database, options?: { publicDir?: string;
   const auditRouter = createAuditRouter(db);
   const terminalRouter = createTerminalRouter(db);
   const footprintRouter = createFootprintRouter(db);
+  const entityRouter = createEntityRouter(db);
   const agentsRouter = createAgentsRouter(db);
 
   // Mount under both /api/v1 and /api for full compatibility
@@ -81,6 +83,7 @@ export function createApp(db: Database.Database, options?: { publicDir?: string;
     auditRouter,
     terminalRouter,
     footprintRouter,
+    entityRouter,
     agentsRouter
   ];
 
