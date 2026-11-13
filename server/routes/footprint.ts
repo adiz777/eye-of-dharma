@@ -6,7 +6,7 @@ import type Database from 'better-sqlite3';
 import crypto from 'node:crypto';
 import dns from 'node:dns';
 import { FootprintQuerySchema, validateBody } from '../security/validation.js';
-import { isIpForbidden } from '../security/ssrf.js';
+import { isIpForbidden, safeFetch } from '../security/ssrf.js';
 import { recordAuditEvent } from '../security/audit.js';
 import { resolveDnsWithFallback, queryRdapDomain, queryRdapIp } from '../connectors/dns_rdap.js';
 import { CrtShConnector } from '../connectors/crtsh.js';
@@ -145,6 +145,34 @@ export function createFootprintRouter(
             upstreamError = { statusCode: 502, code: 'UPSTREAM_RDAP_IP_ERROR', message: rdapIpResult.error };
           }
         }
+
+        // 2.3 Passive Shodan InternetDB Lookup (no API key required, non-blocking)
+        try {
+          const idb = await safeFetch(`https://internetdb.shodan.io/${encodeURIComponent(target)}`, {
+            timeoutMs: 5000,
+            maxBytes: 512 * 1024,
+            headers: { Accept: 'application/json' }
+          });
+          if (idb.statusCode === 200) {
+            const d = JSON.parse(idb.data);
+            if (d && (d.ports?.length || d.vulns?.length || d.hostnames?.length || d.cpes?.length)) {
+              records.push({
+                type: 'INTERNETDB_EXPOSURE',
+                value: `Ports: ${(d.ports || []).join(', ') || 'none'} | CVEs: ${(d.vulns || []).length}`,
+                source: 'SHODAN_INTERNETDB',
+                details: {
+                  ports: d.ports || [],
+                  vulns: d.vulns || [],
+                  cpes: d.cpes || [],
+                  tags: d.tags || [],
+                  hostnames: (d.hostnames || []).slice(0, 20)
+                }
+              });
+            }
+          }
+        } catch {
+          // Best-effort enrichment; ignore upstream failures
+        }
       }
 
       // -----------------------------------------------------------------------
@@ -248,8 +276,63 @@ export function createFootprintRouter(
           });
         }
 
-        // If not a test non-existent/fake pattern, provide observed passive footprint record
+        // Passive Gravatar & XposedOrNot enrichment (best-effort, skipped for negative test patterns)
         const isNegativePattern = /nonexistent|invalid|fake|404|zero-/i.test(cleanEmail);
+        if (!isNegativePattern) {
+          const sha256 = crypto.createHash('sha256').update(cleanEmail).digest('hex');
+          const [gravRes, xonRes] = await Promise.allSettled([
+            safeFetch(`https://api.gravatar.com/v3/profiles/${sha256}`, {
+              timeoutMs: 5000,
+              maxBytes: 256 * 1024,
+              headers: { Accept: 'application/json' }
+            }),
+            safeFetch(`https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(cleanEmail)}`, {
+              timeoutMs: 5000,
+              maxBytes: 512 * 1024,
+              headers: { Accept: 'application/json' }
+            })
+          ]);
+          if (gravRes.status === 'fulfilled' && gravRes.value.statusCode === 200) {
+            try {
+              const g = JSON.parse(gravRes.value.data);
+              if (g?.profile_url) {
+                records.push({
+                  type: 'GRAVATAR_PROFILE',
+                  value: g.display_name || g.profile_url,
+                  source: 'GRAVATAR',
+                  details: {
+                    profile_url: g.profile_url,
+                    location: g.location,
+                    company: g.company,
+                    job_title: g.job_title,
+                    verified_accounts: (g.verified_accounts || []).map((a: any) => a.url).filter(Boolean)
+                  }
+                });
+              }
+            } catch { /* ignore malformed JSON */ }
+          }
+          if (xonRes.status === 'fulfilled' && xonRes.value.statusCode === 200) {
+            try {
+              const x = JSON.parse(xonRes.value.data);
+              const breaches = x?.ExposedBreaches?.breaches_details || [];
+              for (const b of breaches.slice(0, 15)) {
+                records.push({
+                  type: 'BREACH_EXPOSURE',
+                  value: b.breach || 'Unknown breach',
+                  source: 'XPOSEDORNOT',
+                  details: {
+                    date: b.xposed_date,
+                    domain: b.domain,
+                    industry: b.industry,
+                    exposed_data: b.xposed_data,
+                    password_risk: b.password_risk
+                  }
+                });
+              }
+            } catch { /* ignore malformed JSON */ }
+          }
+        }
+
         if (records.length === 0 && !isNegativePattern) {
           records.push({
             type: 'EMAIL_RECORD',

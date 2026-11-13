@@ -34,23 +34,50 @@ describe('Public entity lookup', () => {
     expect((await request(app).post('/api/v1/investigate/entity').set('x-bypass-csrf', 'true').send(extra)).status).toBe(400);
   });
 
-  it('PERSON lookups only touch public-figure and sanctions sources (no social platforms)', async () => {
-    const spy = vi.spyOn(ssrf, 'safeFetch').mockResolvedValue(ok({ search: [] }));
+  it('PERSON lookups only touch public-figure, academic, and sanctions sources (no social platforms)', async () => {
+    const spy = vi.spyOn(ssrf, 'safeFetch').mockResolvedValue(ok({ search: [], results: [], 'expanded-result': [] }));
     const out = await runEntityLookup('PERSON', 'Ada Lovelace');
-    expect(out.map((s) => s.sourceId).sort()).toEqual(['opensanctions', 'wikidata']);
+    expect(out.map((s) => s.sourceId).sort()).toEqual(['openalex_author', 'opensanctions', 'orcid', 'wikidata']);
     expect(out.find((s) => s.sourceId === 'opensanctions')!.status).toBe('unsupported'); // no key configured
-    expect(spy.mock.calls.every((c) => /wikidata\.org/.test(String(c[0])))).toBe(true);
+    expect(spy.mock.calls.every((c) => /wikidata\.org|openalex\.org|orcid\.org/.test(String(c[0])))).toBe(true);
   });
 
   it('distinguishes found, not_found and error for username checks', async () => {
     vi.spyOn(ssrf, 'safeFetch').mockImplementation(async (url: string) => {
       if (url.includes('api.github.com')) return ok({ login: 'octo', html_url: 'https://github.com/octo', created_at: 'x', public_repos: 1 });
       if (url.includes('gitlab.com')) return ok([]);
+      if (url.includes('keybase.io')) return ok({ them: [null] });
+      if (url.includes('bsky.app') || url.includes('mastodon.social') || url.includes('dev.to')) return ok({}, 404);
+      if (url.includes('stackexchange.com')) return ok({ items: [] });
       throw new Error('boom');
     });
     const out = await runEntityLookup('USERNAME', 'octo');
     const by = Object.fromEntries(out.map((s) => [s.sourceId, s.status]));
-    expect(by).toEqual({ github: 'found', gitlab: 'not_found', hackernews: 'error' });
+    expect(by).toEqual({
+      github: 'found',
+      gitlab: 'not_found',
+      hackernews: 'error',
+      keybase: 'not_found',
+      bluesky: 'not_found',
+      mastodon: 'not_found',
+      devto: 'not_found',
+      stackoverflow: 'not_found'
+    });
+  });
+
+  it('COMPANY_NETWORK uses only registry/Wikidata/news/academic sources and resolves Wikidata claims', async () => {
+    const spy = vi.spyOn(ssrf, 'safeFetch').mockImplementation(async (url: string) => {
+      if (url.includes('wbsearchentities')) return ok({ search: [{ id: 'Q478214' }] });
+      if (url.includes('props=claims')) return ok({ entities: { Q478214: { claims: { P169: [{ mainsnak: { datavalue: { value: { id: 'Q317521' } } } }] } } } });
+      if (url.includes('props=labels')) return ok({ entities: { Q317521: { labels: { en: { value: 'Elon Musk' } }, descriptions: { en: { value: 'business magnate' } } } } });
+      return ok({ articles: [], results: [] });
+    });
+    const out = await runEntityLookup('COMPANY_NETWORK', 'Tesla');
+    expect(out.map((s) => s.sourceId).sort()).toEqual(['companies_house_officers', 'gdelt', 'openalex_institution', 'wikidata_people']);
+    const wd = out.find((s) => s.sourceId === 'wikidata_people')!;
+    expect(wd.status).toBe('found');
+    expect(wd.records[0].label).toBe('Elon Musk');
+    expect(spy.mock.calls.every((c) => /wikidata\.org|gdeltproject\.org|openalex\.org/.test(String(c[0])))).toBe(true);
   });
 
   it('rejects malformed usernames before any network call', async () => {

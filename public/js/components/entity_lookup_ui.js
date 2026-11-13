@@ -20,6 +20,7 @@ export function mountEntityLookup(el) {
       <form id="ent-form" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <select id="ent-type" class="btn btn-secondary" aria-label="Lookup type">
           <option value="ORGANIZATION">ORGANISATION</option>
+          <option value="COMPANY_NETWORK">COMPANY → LINKED PEOPLE &amp; NEWS</option>
           <option value="PERSON">PERSON (public figure)</option>
           <option value="USERNAME">USERNAME</option>
         </select>

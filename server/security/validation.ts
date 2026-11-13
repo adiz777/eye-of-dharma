@@ -224,7 +224,7 @@ export function validateBody<T>(schema: z.ZodSchema<T>) {
 }
 
 export const EntityQuerySchema = z.object({
-  query_type: z.enum(['PERSON', 'ORGANIZATION', 'USERNAME']),
+  query_type: z.enum(['PERSON', 'ORGANIZATION', 'USERNAME', 'COMPANY_NETWORK']),
   target: z.string().trim().min(2).max(120),
   confirm_passive: z.literal(true),
   // Explicit statement that the lookup is lawful, proportionate and (for PERSON) about a public figure or an authorised subject.
